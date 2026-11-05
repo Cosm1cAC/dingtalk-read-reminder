@@ -9,6 +9,7 @@
 """
 import argparse
 import datetime
+import os
 import sys
 import time
 
@@ -19,12 +20,19 @@ from dingtalk_api import (DingTalkClient, MSG_KEY_CARD, MSG_KEY_MARKDOWN,
                           send_actioncard_via_webhook, send_via_webhook)
 from excel_stats import load_people, make_template
 
-EXCEL_PATH = "data/已读统计.xlsx"  # 可被 config.yaml 的 data.data_file 覆盖
+EXCEL_PATH = "data/当前统计.xlsx"  # 可被 config.yaml 的 data.data_file 覆盖
 
 
 def load_config(path="config.yaml") -> dict:
+    if not os.path.exists(path):
+        raise SystemExit(
+            "缺少 config.yaml。请先复制配置样例：\n"
+            "  macOS/Linux:  cp config.example.yaml config.yaml\n"
+            "  Windows CMD:  copy config.example.yaml config.yaml\n"
+            "然后填入 webhook 地址与加签密钥（见 README「快速开始」第 2 步）"
+        )
     with open(path, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f)
+        return yaml.safe_load(f) or {}
 
 
 def push(cfg: dict):
@@ -128,8 +136,12 @@ def main():
     args = parser.parse_args()
 
     if args.command == "make-template":
-        make_template(EXCEL_PATH)
-        print(f"[OK] 模板已生成: {EXCEL_PATH}（填好姓名/手机号/职位/应读/已读后再执行 push）")
+        # 优先按配置里的数据路径生成，避免和 push 读的路径不一致
+        target = EXCEL_PATH
+        if os.path.exists("config.yaml"):
+            target = (load_config().get("data") or {}).get("data_file") or target
+        make_template(target)
+        print(f"[OK] 模板已生成: {target}（填好姓名/手机号/职位/应读/已读后再执行 push）")
         return
 
     cfg = load_config()

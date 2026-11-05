@@ -20,28 +20,55 @@ from excel_stats import COLUMNS, load_data_date, save_data_date
 
 TARGET = os.path.join("data", "当前统计.xlsx")
 
+# 源表列号（0 起）。默认对应「部长助手-员工明细」导出：
+#   日期 | 类型(日/月) | ... | 员工名称 | 岗位名称 | 消息量 | 已读消息量
+# 其他省区导出格式不同时，只改这里即可
+COL_DATE, COL_TYPE = 0, 1
+COL_NAME, COL_ROLE, COL_MSG, COL_READ = 8, 9, 10, 11
+TYPE_DAY = "日"  # 当天数据；「月」为当月累计，必须排除
+
 
 def extract(src_path: str, date_str: str = None) -> tuple:
     wb = load_workbook(src_path, data_only=True)
     ws = wb.active
     rows = [r for r in ws.iter_rows(min_row=2, values_only=True) if r and r[0]]
-    dist = Counter((str(r[0])[:10], str(r[1]).strip()) for r in rows)
+    dist = Counter((str(r[COL_DATE])[:10], str(r[COL_TYPE]).strip()) for r in rows)
     print("日期/类型分布:", dict(dist))
 
-    day_rows = [r for r in rows if str(r[1]).strip() == "日"]
+    day_rows = [r for r in rows if str(r[COL_TYPE]).strip() == TYPE_DAY]
+    if not day_rows:
+        raise SystemExit(f"{src_path} 里没有类型为「{TYPE_DAY}」的数据，"
+                         f"请检查列号常量 COL_TYPE 是否与本表一致")
     if not date_str:
-        date_str = max(str(r[0])[:10] for r in day_rows)
-    picked = [r for r in day_rows if str(r[0])[:10] == date_str]
+        date_str = max(str(r[COL_DATE])[:10] for r in day_rows)
+    picked = [r for r in day_rows if str(r[COL_DATE])[:10] == date_str]
     if not picked:
-        raise SystemExit(f"{src_path} 里没有 {date_str} 的「日」类型数据")
+        raise SystemExit(f"{src_path} 里没有 {date_str} 的「{TYPE_DAY}」类型数据")
 
     data = {}
     for r in picked:
-        data[str(r[8]).strip()] = (str(r[9] or "").strip(), int(r[10] or 0), int(r[11] or 0))
+        data[str(r[COL_NAME]).strip()] = (str(r[COL_ROLE] or "").strip(),
+                                          int(r[COL_MSG] or 0),
+                                          int(r[COL_READ] or 0))
     return date_str, data
 
 
-def write_target(date_str: str, data: dict, target: str = TARGET) -> str:
+def resolve_target() -> str:
+    """优先用 config.yaml 里的 data.data_file，保持与 push 读的路径一致。"""
+    if os.path.exists("config.yaml"):
+        try:
+            import yaml
+            cfg = yaml.safe_load(open("config.yaml", encoding="utf-8")) or {}
+            p = (cfg.get("data") or {}).get("data_file")
+            if p:
+                return p
+        except Exception:
+            pass
+    return TARGET
+
+
+def write_target(date_str: str, data: dict, target: str = None) -> str:
+    target = target or resolve_target()
     tmp = target.replace(".xlsx", "_new.xlsx")
     wb = Workbook()
     ws = wb.active

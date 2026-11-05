@@ -95,17 +95,19 @@ def load_people(excel_path: str) -> list:
 
 
 def make_template(excel_path: str):
-    os.makedirs(os.path.dirname(excel_path), exist_ok=True)
+    parent = os.path.dirname(excel_path)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
     wb = Workbook()
     ws = wb.active
     ws.title = "已读统计"
     ws.append(COLUMNS)
     # 示例数据，正式使用时删掉或改掉
     sample = [
-        ["何远鹏", "13800000001", "安全管理员", 7, 2],
-        ["谢伟", "13800000002", "部长", 30, 15],
-        ["任卿云", "13800000003", "操作主管", 34, 25],
-        ["赵春盛", "13800000004", "", 8, 8],
+        ["张三", "13800000001", "安全管理员", 7, 2],
+        ["李四", "13800000002", "部门负责人", 30, 15],
+        ["王五", "13800000003", "操作主管", 34, 25],
+        ["赵六", "13800000004", "", 8, 8],
     ]
     for row in sample:
         ws.append(row)
