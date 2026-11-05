@@ -1,0 +1,20 @@
+# 凭证与真实数据：绝不入库
+config.yaml
+
+# 真实数据（员工姓名、手机号、原始导出表、SQLite）
+data/
+*.xlsx
+*.db
+
+# 工作日志
+20??-??-??.md
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# 系统
+Thumbs.db
+.DS_Store

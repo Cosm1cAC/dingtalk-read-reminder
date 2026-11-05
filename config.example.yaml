@@ -1,0 +1,36 @@
+# 钉钉机器人配置示例
+# 复制为 config.yaml 后填写真实值（config.yaml 已被 .gitignore 排除，不会入库）
+
+# 模式说明（二选一，webhook 有值时优先走 webhook）：
+#   webhook 模式：零权限，群设置→机器人→添加"自定义"机器人获得，actionCard 卡片样式 + @人，无按钮
+#   app    模式：需要开发权限/管理员给凭证，可发互动卡片（收到/回复按钮）+ @人
+webhook:
+  # 群自定义机器人的 Webhook 地址
+  webhook_url: ""
+  # 添加机器人时设置的加签密钥（SEC 开头），没开启签则留空
+  secret: ""
+
+dingtalk:
+  # 开放平台企业内部应用凭证
+  app_key: ""
+  app_secret: ""
+  # 应用的 robotCode，一般等于 app_key
+  robot_code: ""
+  # 目标群的会话 ID（python main.py list-groups 查询）
+  open_conversation_id: ""
+  # 卡片平台模板编号（不填则用 markdown 兜底，无按钮）
+  card_template_id: ""
+
+schedule:
+  # daemon 模式的每日推送时间
+  push_time: "17:00"
+
+card:
+  # 主统计消息里是否逐人列出名单：
+  #   false = 只报人数（人名只在第二条 @提醒里出现，推荐）
+  #   true  = 未使用/部分已读逐人列出，已全部读完只显示前 5 人
+  show_detail_names: false
+
+data:
+  # 每日统计表路径
+  data_file: "data/当前统计.xlsx"
