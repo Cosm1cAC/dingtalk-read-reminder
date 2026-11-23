@@ -3,6 +3,7 @@ config.yaml
 
 # 真实数据（员工姓名、手机号、原始导出表、SQLite）
 data/
+每日报表/
 *.xlsx
 *.db
 

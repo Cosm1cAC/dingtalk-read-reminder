@@ -6,6 +6,8 @@
   list-groups    查询机器人所在的群（拿 openConversationId）
   push           立即推送一次统计提醒（卡片 + 未使用人员 @提醒）
   daemon         常驻模式：每天 push_time 时间自动推送（不想用 Windows 计划任务时用）
+  daily-preview  解析每日报表目录，终端预览三指标四块通报并生成预览文件（不发钉钉）
+  daily-push     推送三指标四块每日通报到钉钉群（含 @责任人）
 """
 import argparse
 import datetime
@@ -16,6 +18,7 @@ import time
 import yaml
 
 from card_builder import build_card_param_map, build_markdown, build_at_message
+from daily_report import build_daily_messages, load_daily_report, render_at_names
 from dingtalk_api import (DingTalkClient, MSG_KEY_CARD, MSG_KEY_MARKDOWN,
                           send_actioncard_via_webhook, send_via_webhook)
 from excel_stats import load_people, make_template
@@ -130,9 +133,85 @@ def cmd_daemon(cfg: dict):
         time.sleep(30)
 
 
+def _resolve_app_client(cfg: dict) -> tuple:
+    app = cfg.get("dingtalk") or {}
+    conversation_id = app.get("open_conversation_id")
+    if not app.get("app_key") or "你的" in str(app.get("app_key")):
+        raise SystemExit("config.yaml 里 webhook 和应用凭证都没填。没有开发权限就填 webhook（群自定义机器人），"
+                         "有开发权限就填 app_key/app_secret，见 README")
+    if not conversation_id or "你的" in conversation_id:
+        raise SystemExit("请先执行 main.py list-groups 查群列表，把 openConversationId 填进 config.yaml")
+    client = DingTalkClient(app["app_key"], app["app_secret"], app["robot_code"])
+    return app, conversation_id, client
+
+
+def cmd_daily_preview(cfg: dict):
+    data = load_daily_report(cfg)
+    msg = build_daily_messages(data, cfg)
+
+    os.makedirs("data", exist_ok=True)
+    preview_path = os.path.join("data", f"每日通报预览_{data.daily_date.isoformat()}.md")
+    preview_md = (
+        f"## 消息 1：主通报卡片（actionCard）\n\n{msg['card_text']}\n\n"
+        f"---\n\n"
+        f"## 消息 2：整改 @提醒（markdown）\n\n{msg['at_text']}\n"
+    )
+    with open(preview_path, "w", encoding="utf-8") as f:
+        f.write(preview_md)
+
+    print("匹配到的源文件:")
+    for k, fn in data.source_files.items():
+        print(f"  - {k}: {fn}")
+    print("\n" + "=" * 60)
+    print(f"[消息 1 · actionCard] 标题: {msg['title']}")
+    print("=" * 60)
+    print(msg["card_text"])
+    print("\n" + "=" * 60)
+    print(f"[消息 2 · markdown @提醒] 标题: {msg['at_title']}")
+    print("=" * 60)
+    print(render_at_names(msg["at_text"], msg["mobile_to_name"]))
+    print("=" * 60)
+    print(f"[预览已写入] {preview_path}")
+    print(f"[@汇总] 已匹配手机号 {len(msg['at_mobiles'])} 人；缺失手机号 {len(msg['missing_phone_names'])} 人")
+    if msg["missing_phone_names"]:
+        print("请用以下命令补齐缺失人员手机号（补一次永久复用）:")
+        for name in msg["missing_phone_names"]:
+            print(f"  python contacts.py {name} <手机号>")
+    if msg.get("unmatched_teams"):
+        print("以下末位班组暂未自动匹配到组长，如需 @ 具体负责人请在 config.yaml 的 report.team_owners 中补充:")
+        for team in msg["unmatched_teams"]:
+            print(f'  "{team}": ["组长姓名"]')
+
+
+def cmd_daily_push(cfg: dict):
+    data = load_daily_report(cfg)
+    msg = build_daily_messages(data, cfg)
+    at_mobiles = msg["at_mobiles"] or None
+    missing = msg["missing_phone_names"]
+
+    webhook_cfg = cfg.get("webhook") or {}
+    webhook_url = webhook_cfg.get("webhook_url") or ""
+    if webhook_url and "你的" not in webhook_url:
+        secret = webhook_cfg.get("secret", "")
+        send_actioncard_via_webhook(webhook_url, secret, msg["title"], msg["card_text"])
+        send_via_webhook(webhook_url, secret, msg["at_title"], msg["at_text"], at_mobiles=at_mobiles)
+        print(f"[OK] 每日通报（actionCard 主卡片 + markdown @提醒）已通过 webhook 发送（@人数: {len(msg['at_mobiles'])}）")
+    else:
+        _, conversation_id, client = _resolve_app_client(cfg)
+        client.send_markdown(conversation_id, msg["title"], msg["card_text"])
+        client.send_markdown(conversation_id, msg["at_title"], msg["at_text"], at_mobiles=at_mobiles)
+        print(f"[OK] 每日通报双消息已通过企业应用发送（@人数: {len(msg['at_mobiles'])}）")
+
+    if missing:
+        print(f"[WARN] 以下 {len(missing)} 人暂缺手机号，已退化为文本点名: {', '.join(missing)}")
+
+
 def main():
     parser = argparse.ArgumentParser(description="钉钉中心管理助手-已读情况提醒机器人")
-    parser.add_argument("command", choices=["make-template", "list-groups", "push", "daemon"])
+    parser.add_argument(
+        "command",
+        choices=["make-template", "list-groups", "push", "daemon", "daily-preview", "daily-push"],
+    )
     args = parser.parse_args()
 
     if args.command == "make-template":
@@ -151,6 +230,10 @@ def main():
         push(cfg)
     elif args.command == "daemon":
         cmd_daemon(cfg)
+    elif args.command == "daily-preview":
+        cmd_daily_preview(cfg)
+    elif args.command == "daily-push":
+        cmd_daily_push(cfg)
 
 
 if __name__ == "__main__":

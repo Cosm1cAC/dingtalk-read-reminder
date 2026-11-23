@@ -34,3 +34,37 @@ card:
 data:
   # 每日统计表路径
   data_file: "data/当前统计.xlsx"
+
+report:
+  # 每日导出报表所在目录（把 BI 导出的 Excel 直接丢进去即可，自动匹配每类最新一份）
+  report_dir: "每日报表"
+  # 替换为你的省区名称，须与导出表「省区名称」列一致
+  province: "示例省区"
+  # 末位部门粒度：team（完整班组名）或 area（按 _ 合并的作业区）
+  dept_level: "team"
+  min_people_improve: 3
+  # 总部每周通报的全国参考值（每周更新一次即可；操作工改善率的全国值与排名会自动从改善明细表计算）
+  national_weekly:
+    as_of: "示例周报周期"
+    manager_usage:
+      national: 85.00
+      province_weekly: 86.00
+      province_rank: 10
+      total_provinces: 32
+      baseline: 80.0
+      target: 85.0
+    manager_solve:
+      national: 68.00
+      province_weekly: 72.00
+      province_rank: 8
+      total_provinces: 32
+      baseline: 65.0
+      target: 70.0
+    operator_improve:
+      baseline: 55.0
+      target: 60.0
+  # 班组负责人映射（可选补充；程序会优先用这里配置的班组/作业区负责人，
+  # 未配置时自动从每日报表里的「操作工助手_推送消息汇总」匹配该班组的操作组长，绝不 @中心负责人）
+  team_owners: {}
+  # 第④块整改要求文案（可按需每日微调）
+  rectification_action: "请以上未读人员今日 18:00 前完成中心管理助手全部消息查看（严禁一键已读）；请末位班组负责人今日内组织未改善绩差人员一对一复盘培训，督促改善"
